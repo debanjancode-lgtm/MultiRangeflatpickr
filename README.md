@@ -3,6 +3,8 @@
 This project extends **Flatpickr** to support **multi-range date selection**, a feature that is **not available and not implemented in the default Flatpickr version**.
 
 ---
+[Live Demo](https://debanjancode-lgtm.github.io/MultiRangeflatpickr/)
+
 
 ## ❗ Limitation of Default Flatpickr
 
