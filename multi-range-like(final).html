@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Multi Range Date Picker</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <style>
+    .flatpickr-day.in-range { background: #cce5ff !important; border-radius: 0 !important; }
+    .flatpickr-day.range-start { background: #0d6efd !important; color: white !important; border-radius: 50% 0 0 50% !important; font-weight: bold; }
+    .flatpickr-day.range-end { background: #0d6efd !important; color: white !important; border-radius: 0 50% 50% 0 !important; font-weight: bold; }
+    .flatpickr-day.range-start.range-end { border-radius: 50% !important; }
+
+     body {
+      height: 100vh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f8f9fa;
+      font-family: Arial, sans-serif;
+    }
+
+    /* Big input field */
+    #datePicker {
+      width: 420px;
+      height: 55px;
+      padding: 10px 16px;
+      font-size: 18px;
+      border-radius: 8px;
+      border: 1px solid #ced4da;
+      outline: none;
+      cursor: pointer;
+    }
+
+    #datePicker:focus {
+      border-color: #0d6efd;
+      box-shadow: 0 0 0 0.15rem rgba(13,110,253,.25);
+    }
+  </style>
+</head>
+<body>
+  <!-- <input type="text" id="datePicker" placeholder="Select dates..." readonly> -->
+  <input
+    type="text"
+    id="datePicker"
+    placeholder="Select date ranges..."
+    readonly
+  />
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script>
+    let rangeStart = null, clickTimer = null;
+    const DELAY = 300;
+
+    const fp = flatpickr("#datePicker", {
+      mode: "multiple",
+      dateFormat: "d-m-Y",
+      minDate: "today",
+      
+      onChange: (dates, str, inst) => {
+        highlightRanges(inst);
+        updateInputDisplay(inst);
+      },
+
+      onMonthChange: (dates, str, inst) => {
+        setTimeout(() => highlightRanges(inst), 10);
+      },
+
+      onYearChange: (dates, str, inst) => {
+        setTimeout(() => highlightRanges(inst), 10);
+      },
+
+      onReady: (dates, str, inst) => {
+        setTimeout(() => {
+          highlightRanges(inst);
+          updateInputDisplay(inst);
+        }, 0);
+      },
+
+      onDayCreate: (dObj, dStr, inst, dayElem) => {
+        dayElem.addEventListener("click", (e) => {
+          const clicked = dayElem.dateObj;
+          if (!clicked) return;
+
+          e.preventDefault();
+          e.stopPropagation();
+
+          if (clickTimer) {
+            clearTimeout(clickTimer);
+            clickTimer = null;
+            toggleDate(inst, clicked);
+            rangeStart = null;
+            return;
+          }
+
+          clickTimer = setTimeout(() => {
+            clickTimer = null;
+            if (rangeStart) {
+              fillRange(inst, rangeStart, clicked);
+              rangeStart = null;
+            } else {
+              const idx = inst.selectedDates.findIndex(d => d.toDateString() === clicked.toDateString());
+              if (idx > -1) {
+                inst.selectedDates.splice(idx, 1);
+                inst.setDate(inst.selectedDates, true);
+              } else {
+                rangeStart = clicked;
+              }
+            }
+          }, DELAY);
+        });
+      }
+    });
+
+    function toggleDate(inst, date) {
+      const idx = inst.selectedDates.findIndex(d => d.toDateString() === date.toDateString());
+      if (idx > -1) {
+        inst.selectedDates.splice(idx, 1);
+      } else {
+        inst.selectedDates.push(date);
+      }
+      inst.setDate(inst.selectedDates, true);
+    }
+
+    function fillRange(inst, start, end) {
+      const s = new Date(Math.min(start, end));
+      const e = new Date(Math.max(start, end));
+      let curr = new Date(s);
+      while (curr <= e) {
+        if (!inst.selectedDates.some(d => d.toDateString() === curr.toDateString())) {
+          inst.selectedDates.push(new Date(curr));
+        }
+        curr.setDate(curr.getDate() + 1);
+      }
+      inst.setDate(inst.selectedDates, true);
+    }
+
+    function highlightRanges(inst) {
+      if (!inst || !inst.calendarContainer) return;
+      const days = inst.calendarContainer.querySelectorAll(".flatpickr-day");
+      days.forEach(d => d.classList.remove("in-range", "range-start", "range-end"));
+      if (!inst.selectedDates || inst.selectedDates.length === 0) return;
+
+      const sorted = [...inst.selectedDates].sort((a, b) => a - b);
+      let i = 0;
+      while (i < sorted.length) {
+        let start = sorted[i], j = i + 1;
+        while (j < sorted.length && (sorted[j] - sorted[j - 1]) <= 86400000) j++;
+        const end = sorted[j - 1];
+
+        const startEl = Array.from(days).find(el => el.dateObj?.toDateString() === start.toDateString());
+        const endEl = Array.from(days).find(el => el.dateObj?.toDateString() === end.toDateString());
+        if (startEl) startEl.classList.add("range-start");
+        if (endEl) endEl.classList.add("range-end");
+
+        if (start.toDateString() !== end.toDateString()) {
+          let mid = new Date(start);
+          mid.setDate(mid.getDate() + 1);
+          while (mid < end) {
+            const midEl = Array.from(days).find(el => el.dateObj?.toDateString() === mid.toDateString());
+            if (midEl) midEl.classList.add("in-range");
+            mid.setDate(mid.getDate() + 1);
+          }
+        }
+        i = j;
+      }
+    }
+
+    function updateInputDisplay(inst) {
+      if (!inst.selectedDates || inst.selectedDates.length === 0) {
+        inst.input.value = "";
+        return;
+      }
+
+      const sorted = [...inst.selectedDates].sort((a, b) => a - b);
+      let groups = [], group = [sorted[0]];
+
+      for (let i = 1; i < sorted.length; i++) {
+        if ((sorted[i] - sorted[i - 1]) <= 86400000) {
+          group.push(sorted[i]);
+        } else {
+          groups.push(group);
+          group = [sorted[i]];
+        }
+      }
+      groups.push(group);
+
+      const display = groups.map(g => 
+        g.length === 1 ? fmt(g[0]) : `${fmt(g[0])} to ${fmt(g[g.length - 1])}`
+      ).join(", ");
+
+      inst.input.value = display;
+    }
+
+    function fmt(date) {
+      const d = date.getDate().toString().padStart(2, '0');
+      const m = (date.getMonth() + 1).toString().padStart(2, '0');
+      return `${d}-${m}-${date.getFullYear()}`;
+    }
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".flatpickr-day") && rangeStart) rangeStart = null;
+    });
+  </script>
+</body>
+</html>
